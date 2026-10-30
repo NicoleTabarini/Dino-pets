@@ -218,3 +218,10 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# mlflow
+mlruns/
+mlflow.db
+
+# model files
+*.pt
