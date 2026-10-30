@@ -51,3 +51,22 @@ def test_build_datasets_uses_seeded_stratified_split(monkeypatch):
         "n_val": 1,
         "n_test": 1,
     }
+
+def test_real_split_is_stratified_disjoint_and_deterministic(monkeypatch):
+    datasets = pytest.importorskip("datasets")
+    labels = [c for c in range(4) for _ in range(10)]
+    ds = datasets.Dataset.from_dict(
+        {"idx": list(range(40)), "label": labels},
+        features=datasets.Features({
+            "idx": datasets.Value("int64"),
+            "label": datasets.ClassLabel(names=["a", "b", "c", "d"]),
+        }),
+    )
+    monkeypatch.setattr(datasets, "load_dataset", lambda name, revision=None: {"train": ds, "test": ds})
+
+    train, val, _, _ = build_datasets("x", val_frac=0.2, seed=0)
+    train2, val2, _, _ = build_datasets("x", val_frac=0.2, seed=0)
+
+    assert set(train["idx"]).isdisjoint(val["idx"])
+    assert set(train["label"]) == set(val["label"]) == {0, 1, 2, 3}
+    assert val["idx"] == val2["idx"] and train["idx"] == train2["idx"]
