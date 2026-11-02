@@ -4,7 +4,7 @@ DEFAULTS = {
     "mode": "lora",
     "backbone": "facebook/dinov2-small",
     "dataset_name": "timm/oxford-iiit-pet",
-    "epochs": 3,
+    "epochs": 1,
     "batch_size": 32,
     "weight_decay": 0.01,
     "val_frac": 0.15,

@@ -1,4 +1,5 @@
 import sys
+from collections import Counter
 from types import SimpleNamespace
 
 import pytest
@@ -7,6 +8,7 @@ from data.dataset import build_datasets
 
 
 def test_build_datasets_uses_seeded_stratified_split(monkeypatch):
+    """Check that loading and splitting return the expected data and details."""
     train_rows = [{"image": "train-image", "label": 0}]
     validation_rows = [{"image": "validation-image", "label": 1}]
 
@@ -54,7 +56,9 @@ def test_build_datasets_uses_seeded_stratified_split(monkeypatch):
         "n_test": 1,
     }
 
+
 def test_real_split_is_stratified_disjoint_and_deterministic(monkeypatch):
+    """Check class counts, no overlap, and the same split for the same seed."""
     datasets = pytest.importorskip("datasets")
     labels = [c for c in range(4) for _ in range(10)]
     ds = datasets.Dataset.from_dict(
@@ -64,11 +68,14 @@ def test_real_split_is_stratified_disjoint_and_deterministic(monkeypatch):
             "label": datasets.ClassLabel(names=["a", "b", "c", "d"]),
         }),
     )
+
+    # Replace only dataset loading so the test exercises the real split method.
     monkeypatch.setattr(datasets, "load_dataset", lambda name, revision=None: {"train": ds, "test": ds})
 
     train, val, _, _ = build_datasets("x", val_frac=0.2, seed=0)
     train2, val2, _, _ = build_datasets("x", val_frac=0.2, seed=0)
 
     assert set(train["idx"]).isdisjoint(val["idx"])
-    assert set(train["label"]) == set(val["label"]) == {0, 1, 2, 3}
+    assert Counter(train["label"]) == {0: 8, 1: 8, 2: 8, 3: 8}
+    assert Counter(val["label"]) == {0: 2, 1: 2, 2: 2, 3: 2}
     assert val["idx"] == val2["idx"] and train["idx"] == train2["idx"]

@@ -11,39 +11,46 @@ from models.dinov2_lora import build_model, count_params  # noqa: E402
 
 
 def tiny_backbone():
+    """Make a small DINOv2 model without downloading weights."""
     cfg = Dinov2Config(hidden_size=32, num_hidden_layers=2, num_attention_heads=2,
                        intermediate_size=64, image_size=28, patch_size=14)
     return Dinov2Model(cfg)
 
 
 def trainable(model):
+    """Count the model parameters that can be changed during training."""
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
 
 def test_param_counts_ordered_linear_lt_lora_lt_full():
+    """Check that each training mode has more trainable parameters than the last."""
     counts = {m: trainable(build_model(tiny_backbone(), 5, mode=m)) for m in ("linear", "lora", "full")}
     assert counts["linear"] < counts["lora"] < counts["full"]
 
 
 def test_linear_trains_only_head():
+    """Check that linear mode trains the head and freezes the backbone."""
     model = build_model(tiny_backbone(), 5, mode="linear")
     assert all(not p.requires_grad for p in model.backbone.parameters())
     assert all(p.requires_grad for p in model.head.parameters())
 
 
 def test_lora_params_are_adapters_and_head_only():
+    """Check that LoRA mode trains only the adapters and the head."""
     model = build_model(tiny_backbone(), 5, mode="lora")
     names = [n for n, p in model.named_parameters() if p.requires_grad]
     assert names and all(("lora_" in n) or n.startswith("head") for n in names)
 
 
 def test_forward_shape():
+    """Check that the model returns one score per class for each image."""
     model = build_model(tiny_backbone(), 5, mode="lora")
     out = model(torch.randn(2, 3, 28, 28))
     assert out.shape == (2, 5)
 
 
 def test_lora_starts_at_pretrained_output():
+    """Check that new LoRA adapters do not change the backbone output at first."""
     # B is initialised to zero, so a fresh LoRA model equals the frozen backbone.
     torch.manual_seed(0)
     base = tiny_backbone().eval()
@@ -55,5 +62,6 @@ def test_lora_starts_at_pretrained_output():
 
 
 def test_count_params_keys():
+    """Check that full training mode reports all parameters as trainable."""
     stats = count_params(build_model(tiny_backbone(), 5, mode="full"))
     assert stats["trainable_pct"] == pytest.approx(100.0)

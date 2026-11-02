@@ -129,6 +129,8 @@ def main(argv=None) -> dict[str, float]:
     device = resolve_device(args.device)
 
     mlflow.set_tracking_uri(args.tracking_uri)
+
+    # Load and transform the dataset.
     train_ds, val_ds, test_ds, info = build_datasets(
         args.dataset_name, args.val_frac, args.seed
     )
@@ -138,7 +140,7 @@ def main(argv=None) -> dict[str, float]:
     if args.max_train_samples:
         train_ds = torch.utils.data.Subset(train_ds, range(min(args.max_train_samples, len(train_ds))))
 
-    # A seeded generator makes the shuffling order reproducible.
+    # Build data loaders; the seeded generator makes training shuffles reproducible.
     gen = torch.Generator().manual_seed(args.seed)
     common = dict(num_workers=args.num_workers, worker_init_fn=worker_init_fn,
                   pin_memory=device.type == "cuda")
@@ -147,6 +149,7 @@ def main(argv=None) -> dict[str, float]:
     val_loader = DataLoader(val_ds, batch_size=args.batch_size, **common)
     test_loader = DataLoader(test_ds, batch_size=args.batch_size, **common)
 
+    # Configure the model and optimizer.
     model = build_model(
         load_backbone(args.backbone), info["num_classes"], mode=args.mode,
         lora_r=args.lora_r, lora_alpha=args.lora_alpha, lora_dropout=args.lora_dropout,
@@ -158,6 +161,7 @@ def main(argv=None) -> dict[str, float]:
         lr=lr, weight_decay=args.weight_decay,
     )
 
+    # Log run configuration, train, and track validation performance.
     mlflow.set_experiment(args.experiment)
     with mlflow.start_run(run_name=f"{args.mode}-r{args.lora_r}" if args.mode == "lora" else args.mode):
         mlflow.log_params({
@@ -189,6 +193,7 @@ def main(argv=None) -> dict[str, float]:
                 best_val, best_state = va["acc"], trainable_state_dict(model)
         train_seconds = time.time() - start
 
+        # Restore the best validation checkpoint before the final test evaluation.
         trainable_names = {
             name for name, parameter in model.named_parameters()
             if parameter.requires_grad
@@ -211,6 +216,7 @@ def main(argv=None) -> dict[str, float]:
         test = evaluate(model, test_loader, device)
         mlflow.log_metrics({"test_acc": test["acc"], "test_loss": test["loss"]})
 
+        # Save and log the selected checkpoint.
         os.makedirs("outputs", exist_ok=True)
         ckpt = f"outputs/{args.mode}_trainable.pt"
         torch.save(best_state, ckpt)

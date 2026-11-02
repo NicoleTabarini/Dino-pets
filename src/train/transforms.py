@@ -1,8 +1,6 @@
 """Image transforms used when loading Oxford-IIIT Pet samples."""
 from __future__ import annotations
-
 from collections.abc import Callable
-
 from torch.utils.data import Dataset
 
 from train.hyperparameters import DATA_PARAMS
