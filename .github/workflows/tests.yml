@@ -5,7 +5,7 @@ on:
   pull_request:
 
 jobs:
-  pytest unit tests:
+  pytest_unit_tests:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
